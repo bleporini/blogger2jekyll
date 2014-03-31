@@ -75,7 +75,6 @@ public class BloggerParser {
                         outputDirPath, f -> log.info("Download done to {}", f.getAbsolutePath()));
                 findImpagesUrls(content).forEach(downloadToDir::doDownload);
 
-                new BlogPost().setContent("test");
                 final NodeList tags = (NodeList) tagsFndr.evaluate( entry, NODESET);
                 for(int j = 0 ; j<tags.getLength();j++){
                     final Node tag = tags.item(j);
