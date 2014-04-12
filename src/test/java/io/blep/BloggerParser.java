@@ -5,24 +5,33 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 import org.junit.Test;
-import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathFactory;
-import java.io.*;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
-import static io.blep.BlogPost.BlogPostBuilder;
-import static io.blep.BlogPost.builder;
+import static io.blep.ExceptionUtils.propagate;
+import static java.net.URLDecoder.decode;
 import static java.net.URLEncoder.encode;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static javax.xml.xpath.XPathConstants.NODESET;
 import static javax.xml.xpath.XPathConstants.STRING;
+import static org.apache.commons.io.FilenameUtils.getName;
+import static org.apache.commons.lang3.StringUtils.stripAccents;
 
 /**
  * @author blep
@@ -35,7 +44,8 @@ public class BloggerParser {
     private static final String postKind = "http://schemas.google.com/blogger/2008/kind#post";
     private static final String tagScheme = "http://www.blogger.com/atom/ns#";
 
-    private static final String tmpDirPath = System.getProperty("java.io.tmpdir");
+//    private static final String tmpDirPath = System.getProperty("java.io.tmpdir")+ "/blogger2jekyll";
+    private static final String tmpDirPath = "/tmp/the-babel-tower";
     static {
         log.info("Working tmp dir : {}", tmpDirPath);
     }
@@ -51,60 +61,98 @@ public class BloggerParser {
         final XPathExpression titleFndr = xpath.compile("*[local-name()='title']/text()");
         final XPathExpression contentFndr = xpath.compile("*[local-name()='content']/text()");
         final XPathExpression tagsFndr = xpath.compile("*[local-name()='category' and @scheme='" + tagScheme + "']/@term");
+        final XPathExpression publishFndr = xpath.compile("*[local-name()='published']/text()");
 
         try (final InputStream xmlIs = getClass().getResourceAsStream(sourceFileName);
                 final Downloader downloader = new Downloader()) {
             final InputSource inputSource = new InputSource(xmlIs);
             final NodeList res = (NodeList) blogEntriesFndr.evaluate(inputSource, NODESET);
-            for (int i = 0; i < res.getLength(); i++) {
-                final Node entry = res.item(i);
-                final String title = (String) titleFndr.evaluate(entry, STRING);
+
+            DomUtils.asList(res).stream().forEach(entry->{
+                final String title = (String) propagate(() -> titleFndr.evaluate(entry, STRING));
                 log.info("title= {}", title);
-                final String content = (String) contentFndr.evaluate(entry, STRING);
-                log.info("content = {}", content);
+                final String date = ((String) propagate(() -> publishFndr.evaluate(entry, STRING))).substring(0,10);
+                log.info("date : {}", date);
+                final String bloggerContent = (String) propagate(() -> contentFndr.evaluate(entry, STRING));
 
-                String imgRelPath = "/assets/img" + encode(title, "utf8");
-                final String outputDirPath = tmpDirPath + imgRelPath;
-                final File outputDir = new File(outputDirPath);
-                if (!outputDir.exists()) outputDir.mkdir();
-                final BlogPostBuilder builder = builder()
-                        .content(content)
-                        .title(title);
+                final Collection<String> imgUrls = findImageUrlsToReplace(bloggerContent);
+                String imgRelPath = "/assets/img/" + propagate(() -> encode(stripAccents(title.replaceAll("[':]","")), "utf8"));
+                if (!imgUrls.isEmpty()) {
+                    final String outputDirPath = tmpDirPath + imgRelPath;
+                    new File(outputDirPath).mkdirs();
 
-                final Downloader.DownloadToDir downloadToDir = downloader.downloaderToDir(
-                        outputDirPath, f -> log.info("Download done to {}", f.getAbsolutePath()));
-//                findImageUrlsToReplace(builder).forEach(downloadToDir::doDownload);
-                   replaceImagesUrl(builder,imgRelPath);
-
-                final NodeList tags = (NodeList) tagsFndr.evaluate(entry, NODESET);
-                for (int j = 0; j < tags.getLength(); j++) {
-                    final Node tag = tags.item(j);
-                    log.info("tag.getTextContent() = {}", tag.getTextContent());
+                    final Downloader.DownloadToDir downloadToDir = downloader.downloaderToDir(
+                            outputDirPath, f -> log.info("Download done to {}", f.getAbsolutePath()));
+                    imgUrls.forEach(downloadToDir::doDownload);
                 }
-            }
+
+                final String contentWithNewImgs = replaceImagesUrl(bloggerContent, imgRelPath);
+                final String body = extractBody(contentWithNewImgs);
+
+                log.info("content = {}", contentWithNewImgs);
+
+                final NodeList tagNodes = (NodeList) propagate(() -> tagsFndr.evaluate(entry, NODESET));
+                final Set<String> tags = extractTags(tagNodes);
+                createPosts(date,title,body,tags);
+            });
+
         }
 
     }
 
-    private void replaceImagesUrl(final BlogPostBuilder builder, final String relPath) {
-        final Document doc = Jsoup.parse(builder.getContent());
-        final Elements imgs = doc.select("img");
-        imgs.stream()
-                .filter(e -> e.attr("src").contains("blogspot"))
-                .forEach(e -> {
-                    String src = e.attr("src");
-                    try {
-                        URL url = new URL(src);
-                        log.info(url.);
-                    } catch (MalformedURLException e1) {
-                        e1.printStackTrace();
-                    }
-                });
+    private String extractBody(String content) {
+        final Document doc = Jsoup.parse(content);
+        return doc.select("body").toString();
 
     }
 
-    private Collection<String> findImageUrlsToReplace(BlogPostBuilder builder){
-        final Document doc = Jsoup.parse(builder.getContent());
+    private void createPosts(String date, String title, String content, Set<String> tags){
+        final String outputDirPath = tmpDirPath + "/_posts";
+        new File(outputDirPath).mkdirs();
+
+        final ArrayList<String> lines = new ArrayList<>(6);
+        lines.add("---");
+        lines.add("layout: post");
+        lines.add("title: " + title.replaceAll(":","&#58;"));
+        lines.add("tags: [" + tags.stream().collect(joining(",")) + "]");
+        lines.add("---");
+        lines.add("{% include JB/setup %}");
+        lines.add(content);
+
+        try {
+            final Path post = Paths.get(outputDirPath + "/" + date + "-"+encode(title,"utf8")+".html");
+            Files.write(post, lines, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+
+    }
+
+    private Set<String> extractTags(NodeList tagNodes) {
+        return new HashSet<>(
+                DomUtils.asList(tagNodes).stream()
+                    .map(t->t.getTextContent()).collect(toList()));
+    }
+
+    private String replaceImagesUrl(final String content, final String relPath) {
+        final Document doc = Jsoup.parse(content);
+        final Elements imgs = doc.select("img");
+        imgs.stream()
+                .filter(e -> e.attr("src").contains("blogspot"))
+                .forEach(e -> e.attr("src", relPath + "/" +
+                        propagate(() -> encode(stripAccents(decode(getName(e.attr("src")), "utf8")), "utf8"))));
+
+        doc.select("img").stream() //just for checking
+                .filter(e -> e.attr("src").contains("blogspot"))
+                .forEach(e-> {
+                    throw new RuntimeException("should not happend");
+                });
+        return doc.toString();
+    }
+
+    private Collection<String> findImageUrlsToReplace(String content){
+        final Document doc = Jsoup.parse(content);
         final Elements imgs = doc.select("img");
         return imgs.stream()
                 .filter(e -> e.attr("src").contains("blogspot"))

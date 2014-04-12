@@ -1,6 +1,7 @@
 package io.blep;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
@@ -8,15 +9,16 @@ import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
+import java.net.URLDecoder;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
+import static java.net.URLDecoder.decode;
+import static java.net.URLEncoder.encode;
 import static org.apache.commons.io.FilenameUtils.getName;
+import static org.apache.commons.lang3.StringUtils.stripAccents;
 
 /**
 * User: blep
@@ -65,7 +67,12 @@ public class Downloader implements AutoCloseable {
     }
 
     public void doDownload(String url, String outputDir, FishedDownloadListener listener) {
-        final String fileName = getName(url);
+        final String fileName;
+        try {
+            fileName = encode(stripAccents(decode(getName(url), "utf8")),"utf8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
         final HttpGet request = new HttpGet(url);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -80,12 +87,12 @@ public class Downloader implements AutoCloseable {
                 log.info("{} -> {}", request.getRequestLine(), response.getStatusLine());
                 final String outputFilePath = outputDir + "/" + fileName;
                 log.info("Saving to {}", outputFilePath);
-                try (final OutputStream os= new FileOutputStream(outputFilePath);){
+                try (final OutputStream os = new FileOutputStream(outputFilePath);) {
                     response.getEntity().writeTo(os);
                     listener.notify(new File(outputFilePath));
                 } catch (IOException e) {
                     e.printStackTrace();
-                }finally {
+                } finally {
                     freeLatch();
                 }
             }
