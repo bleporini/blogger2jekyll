@@ -1,12 +1,6 @@
 package io.blep;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
@@ -19,15 +13,16 @@ import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathFactory;
 import java.io.*;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.stream.Stream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Collection;
 
+import static io.blep.BlogPost.BlogPostBuilder;
+import static io.blep.BlogPost.builder;
 import static java.net.URLEncoder.encode;
+import static java.util.stream.Collectors.toList;
 import static javax.xml.xpath.XPathConstants.NODESET;
 import static javax.xml.xpath.XPathConstants.STRING;
-import static org.apache.commons.io.FilenameUtils.getName;
 
 /**
  * @author blep
@@ -58,25 +53,31 @@ public class BloggerParser {
         final XPathExpression tagsFndr = xpath.compile("*[local-name()='category' and @scheme='" + tagScheme + "']/@term");
 
         try (final InputStream xmlIs = getClass().getResourceAsStream(sourceFileName);
-            final Downloader downloader = new Downloader()) {
+                final Downloader downloader = new Downloader()) {
             final InputSource inputSource = new InputSource(xmlIs);
             final NodeList res = (NodeList) blogEntriesFndr.evaluate(inputSource, NODESET);
-            for(int i=0 ; i < res.getLength(); i++){
+            for (int i = 0; i < res.getLength(); i++) {
                 final Node entry = res.item(i);
-                final String title = (String) titleFndr.evaluate( entry, STRING);
+                final String title = (String) titleFndr.evaluate(entry, STRING);
                 log.info("title= {}", title);
                 final String content = (String) contentFndr.evaluate(entry, STRING);
                 log.info("content = {}", content);
-                final String outputDirPath = tmpDirPath + encode(title, "utf8");
+
+                String imgRelPath = "/assets/img" + encode(title, "utf8");
+                final String outputDirPath = tmpDirPath + imgRelPath;
                 final File outputDir = new File(outputDirPath);
-                if(!outputDir.exists())
-                    outputDir.mkdir();
+                if (!outputDir.exists()) outputDir.mkdir();
+                final BlogPostBuilder builder = builder()
+                        .content(content)
+                        .title(title);
+
                 final Downloader.DownloadToDir downloadToDir = downloader.downloaderToDir(
                         outputDirPath, f -> log.info("Download done to {}", f.getAbsolutePath()));
-                findImpagesUrls(content).forEach(downloadToDir::doDownload);
+//                findImageUrlsToReplace(builder).forEach(downloadToDir::doDownload);
+                   replaceImagesUrl(builder,imgRelPath);
 
-                final NodeList tags = (NodeList) tagsFndr.evaluate( entry, NODESET);
-                for(int j = 0 ; j<tags.getLength();j++){
+                final NodeList tags = (NodeList) tagsFndr.evaluate(entry, NODESET);
+                for (int j = 0; j < tags.getLength(); j++) {
                     final Node tag = tags.item(j);
                     log.info("tag.getTextContent() = {}", tag.getTextContent());
                 }
@@ -85,109 +86,31 @@ public class BloggerParser {
 
     }
 
-    private Stream<String> findImpagesUrls(String content){
-        final Document doc = Jsoup.parse(content);
+    private void replaceImagesUrl(final BlogPostBuilder builder, final String relPath) {
+        final Document doc = Jsoup.parse(builder.getContent());
+        final Elements imgs = doc.select("img");
+        imgs.stream()
+                .filter(e -> e.attr("src").contains("blogspot"))
+                .forEach(e -> {
+                    String src = e.attr("src");
+                    try {
+                        URL url = new URL(src);
+                        log.info(url.);
+                    } catch (MalformedURLException e1) {
+                        e1.printStackTrace();
+                    }
+                });
+
+    }
+
+    private Collection<String> findImageUrlsToReplace(BlogPostBuilder builder){
+        final Document doc = Jsoup.parse(builder.getContent());
         final Elements imgs = doc.select("img");
         return imgs.stream()
+                .filter(e -> e.attr("src").contains("blogspot"))
                 .map(e -> e.attr("src"))
-                .filter(e -> e.contains("blogspot"));
+                .collect(toList());
     }
-
-    public static class Downloader implements AutoCloseable {
-        private final RequestConfig requestConfig = RequestConfig.custom()
-                .setSocketTimeout(3000)
-                .setConnectTimeout(3000).build();
-        private final CloseableHttpAsyncClient httpclient = HttpAsyncClients.custom()
-                .setDefaultRequestConfig(requestConfig)
-                .setMaxConnTotal(10)
-                .build();
-
-        {
-            httpclient.start();
-        }
-
-        @FunctionalInterface
-        public static interface FishedDownloadListener{
-            void notify(File f);
-        }
-
-        private List<CountDownLatch> latches = new CopyOnWriteArrayList<>();
-
-        public static class DownloadToDir{
-            private final String outputdir;
-            private final Downloader downloader;
-            private final FishedDownloadListener listener;
-
-            public DownloadToDir(String outputdir, Downloader downloader, FishedDownloadListener listener) {
-                this.outputdir = outputdir;
-                this.downloader = downloader;
-                this.listener = listener;
-            }
-
-            public void doDownload(String url){
-                downloader.doDownload(url,outputdir, listener);
-            }
-        }
-
-        public DownloadToDir downloaderToDir(String outputdir, FishedDownloadListener listener) {
-            return new DownloadToDir(outputdir, this, listener);
-        }
-
-        public void doDownload(String url, String outputDir, FishedDownloadListener listener) {
-            final String fileName = getName(url);
-            final HttpGet request = new HttpGet(url);
-            final CountDownLatch latch = new CountDownLatch(1);
-
-            latches.add(latch);
-            httpclient.execute(request, new FutureCallback<HttpResponse>() {
-                private void freeLatch() {
-                    latch.countDown();
-                    latches.remove(latch);
-                }
-
-                public void completed(final HttpResponse response) {
-                    log.info("{} -> {}", request.getRequestLine(), response.getStatusLine());
-                    final String outputFilePath = outputDir + "/" + fileName;
-                    log.info("Saving to {}", outputFilePath);
-                    try (final OutputStream os= new FileOutputStream(outputFilePath);){
-                        response.getEntity().writeTo(os);
-                        listener.notify(new File(outputFilePath));
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }finally {
-                        freeLatch();
-                    }
-                }
-
-                public void failed(final Exception ex) {
-                    freeLatch();
-                    log.error("{} -> {}", request.getRequestLine(), ex);
-                }
-
-                public void cancelled() {
-                    freeLatch();
-                    log.warn("{} canceled", request.getRequestLine());
-                }
-
-            });
-
-        }
-
-        @Override
-        public void close() throws Exception {
-            log.info("Disposing downloader: waiting workload to be accomplished");
-            latches.stream().forEach(l -> {
-                try {
-                    l.await();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            });
-            log.info("closing");
-            httpclient.close();
-        }
-    }
-
 
 
 }
