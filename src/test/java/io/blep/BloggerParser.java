@@ -18,14 +18,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
+import static io.blep.Downloader.sanitizeFilename;
 import static io.blep.ExceptionUtils.propagate;
 import static java.net.URLDecoder.decode;
 import static java.net.URLEncoder.encode;
+import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static javax.xml.xpath.XPathConstants.NODESET;
@@ -45,7 +44,7 @@ public class BloggerParser {
     private static final String tagScheme = "http://www.blogger.com/atom/ns#";
 
 //    private static final String tmpDirPath = System.getProperty("java.io.tmpdir")+ "/blogger2jekyll";
-    private static final String tmpDirPath = "/tmp/the-babel-tower";
+    private static final String tmpDirPath = "/Users/blep/dev/blogger2jekyll/target/classes/the-babel-tower";
     static {
         log.info("Working tmp dir : {}", tmpDirPath);
     }
@@ -76,7 +75,7 @@ public class BloggerParser {
                 final String bloggerContent = (String) propagate(() -> contentFndr.evaluate(entry, STRING));
 
                 final Collection<String> imgUrls = findImageUrlsToReplace(bloggerContent);
-                String imgRelPath = "/assets/img/" + propagate(() -> encode(stripAccents(title.replaceAll("[':]","")), "utf8"));
+                String imgRelPath = "/assets/img/" + propagate(() -> encode(sanitizeFilename(title), "utf8"));
                 if (!imgUrls.isEmpty()) {
                     final String outputDirPath = tmpDirPath + imgRelPath;
                     new File(outputDirPath).mkdirs();
@@ -102,7 +101,7 @@ public class BloggerParser {
 
     private String extractBody(String content) {
         final Document doc = Jsoup.parse(content);
-        return doc.select("body").toString();
+        return doc.select("body").stream().map(e -> e.html()).collect(joining("\n")).toString();
 
     }
 
@@ -114,7 +113,8 @@ public class BloggerParser {
         lines.add("---");
         lines.add("layout: post");
         lines.add("title: " + title.replaceAll(":","&#58;"));
-        lines.add("tags: [" + tags.stream().collect(joining(",")) + "]");
+        lines.add("tags: [" + tags.stream()
+                .collect(joining(" , ")) + "]");
         lines.add("---");
         lines.add("{% include JB/setup %}");
         lines.add(content);
@@ -130,9 +130,12 @@ public class BloggerParser {
     }
 
     private Set<String> extractTags(NodeList tagNodes) {
-        return new HashSet<>(
-                DomUtils.asList(tagNodes).stream()
-                    .map(t->t.getTextContent()).collect(toList()));
+        final ArrayList<String> res = new ArrayList<>();
+        DomUtils.asList(tagNodes).stream()
+                .map(t -> asList(t.getTextContent().toLowerCase().split(" ")))
+                .forEach(res::addAll);
+
+        return new HashSet<>(res);
     }
 
     private String replaceImagesUrl(final String content, final String relPath) {
@@ -141,7 +144,7 @@ public class BloggerParser {
         imgs.stream()
                 .filter(e -> e.attr("src").contains("blogspot"))
                 .forEach(e -> e.attr("src", relPath + "/" +
-                        propagate(() -> encode(stripAccents(decode(getName(e.attr("src")), "utf8")), "utf8"))));
+                        propagate(() -> encode(sanitizeFilename(getName(e.attr("src"))), "utf8"))));
 
         doc.select("img").stream() //just for checking
                 .filter(e -> e.attr("src").contains("blogspot"))

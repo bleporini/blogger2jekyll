@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
+import static io.blep.ExceptionUtils.propagate;
 import static java.net.URLDecoder.decode;
 import static java.net.URLEncoder.encode;
 import static org.apache.commons.io.FilenameUtils.getName;
@@ -37,6 +38,16 @@ public class Downloader implements AutoCloseable {
 
     {
         httpclient.start();
+    }
+
+    /**
+     *
+     * @param original
+     * @return an encoded filename without characters with problems.
+     */
+    public static String sanitizeFilename(String original) {
+        return propagate(()->stripAccents(decode(original.replaceAll("%E2%80%99",""), "utf8").replaceAll(":", "")));
+
     }
 
     @FunctionalInterface
@@ -69,7 +80,7 @@ public class Downloader implements AutoCloseable {
     public void doDownload(String url, String outputDir, FishedDownloadListener listener) {
         final String fileName;
         try {
-            fileName = encode(stripAccents(decode(getName(url), "utf8")),"utf8");
+            fileName = encode(sanitizeFilename(getName(url)),"utf8");
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }
