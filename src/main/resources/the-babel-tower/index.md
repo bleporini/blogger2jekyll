@@ -5,7 +5,6 @@ tagline: Supporting tagline
 ---
 {% include JB/setup %}
 
-{% tag_cloud %}
 
 {{ site.posts.first.content | strip_html | truncatewords: 75}}
 
