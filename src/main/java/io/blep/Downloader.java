@@ -13,11 +13,8 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
-import static io.blep.ExceptionUtils.propagate;
-import static java.net.URLDecoder.decode;
 import static java.net.URLEncoder.encode;
 import static org.apache.commons.io.FilenameUtils.getName;
-import static org.apache.commons.lang3.StringUtils.stripAccents;
 
 /**
 * User: blep
@@ -36,17 +33,6 @@ public class Downloader implements AutoCloseable {
 
     {
         httpclient.start();
-    }
-
-    /**
-     *
-     * @param original
-     * @return an encoded filename without characters with problems.
-     */
-    public static String sanitizeFilename(String original) {
-        return propagate(()->stripAccents(decode(original.replaceAll("%E2%80%99",""), "latin1")
-                .replaceAll(":", "").replaceAll("'","_")));
-
     }
 
     @FunctionalInterface
@@ -79,7 +65,7 @@ public class Downloader implements AutoCloseable {
     void doDownload(String url, String outputDir, FishedDownloadListener listener) {
         final String fileName;
         try {
-            fileName = encode(sanitizeFilename(getName(url)),"latin1");
+            fileName = encode(FilenameUtils.sanitizeFilename(getName(url)),"latin1");
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }
@@ -97,7 +83,7 @@ public class Downloader implements AutoCloseable {
                 log.info("{} -> {}", request.getRequestLine(), response.getStatusLine());
                 final String outputFilePath = outputDir + "/" + fileName;
                 log.info("Saving to {}", outputFilePath);
-                try (final OutputStream os = new FileOutputStream(outputFilePath);) {
+                try (final OutputStream os = new FileOutputStream(outputFilePath)) {
                     response.getEntity().writeTo(os);
                     listener.notify(new File(outputFilePath));
                 } catch (IOException e) {

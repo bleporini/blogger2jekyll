@@ -6,6 +6,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.junit.Test;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
@@ -21,13 +22,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 
-import static io.blep.Downloader.sanitizeFilename;
+import static io.blep.FilenameUtils.sanitizeFilename;
 import static io.blep.ExceptionUtils.propagate;
 import static java.net.URLEncoder.encode;
 import static java.util.Arrays.asList;
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.*;
 import static javax.xml.xpath.XPathConstants.NODESET;
 import static javax.xml.xpath.XPathConstants.STRING;
 import static org.apache.commons.io.FilenameUtils.getName;
@@ -50,7 +51,7 @@ public class BloggerParserTest {
     }
 
     private final XPath xpath = XPathFactory.newInstance().newXPath();
-    private final XPathExpression titleFndr= xpath.compile("*[local-name()='title']/text()");;
+    private final XPathExpression titleFndr= xpath.compile("*[local-name()='title']/text()");
     private final XPathExpression contentFndr = xpath.compile("*[local-name()='content']/text()");
     private final XPathExpression tagsFndr = xpath.compile("*[local-name()='category' and @scheme='" + tagScheme + "']/@term");
     private final XPathExpression publishFndr = xpath.compile("*[local-name()='published']/text()");
@@ -91,7 +92,7 @@ public class BloggerParserTest {
 
                 BloggerParserTest.log.info("content = {}", contentWithNewImgs);
 
-                final NodeList tagNodes = (NodeList) propagate(() -> tagsFndr.evaluate(entry, NODESET));
+                final List<Node> tagNodes = DomUtils.asList((NodeList) propagate(() -> tagsFndr.evaluate(entry, NODESET)));
                 final Set<String> tags = extractTags(tagNodes);
                 createPosts(date,title,body,tags);
             });
@@ -132,13 +133,11 @@ public class BloggerParserTest {
 
     }
 
-    private Set<String> extractTags(NodeList tagNodes) {
-        final ArrayList<String> res = new ArrayList<>();
-        DomUtils.asList(tagNodes).stream()
-                .map(t -> asList(t.getTextContent().toLowerCase().split(" ")))
-                .forEach(res::addAll);
+    private Set<String> extractTags(List<Node> tagNodes) {
+        return tagNodes.stream()
+                .map(t -> t.getTextContent().toLowerCase())
+                .collect(toSet());
 
-        return new HashSet<>(res);
     }
 
     private String replaceImagesUrl(final String content, final String relPath) {
@@ -152,7 +151,7 @@ public class BloggerParserTest {
         doc.select("img").stream() //just for checking
                 .filter(e -> e.attr("src").contains("blogspot"))
                 .forEach(e-> {
-                    throw new RuntimeException("should not happend");
+                    throw new RuntimeException("should not happen");
                 });
         return doc.toString();
     }
