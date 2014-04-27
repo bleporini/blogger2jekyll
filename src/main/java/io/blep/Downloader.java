@@ -46,7 +46,7 @@ public class Downloader implements AutoCloseable {
      * @return an encoded filename without characters with problems.
      */
     public static String sanitizeFilename(String original) {
-        return propagate(()->stripAccents(decode(original.replaceAll("%E2%80%99",""), "utf8")
+        return propagate(()->stripAccents(decode(original.replaceAll("%E2%80%99",""), "latin1")
                 .replaceAll(":", "").replaceAll("'","_")));
 
     }
@@ -81,7 +81,7 @@ public class Downloader implements AutoCloseable {
     public void doDownload(String url, String outputDir, FishedDownloadListener listener) {
         final String fileName;
         try {
-            fileName = encode(sanitizeFilename(getName(url)),"utf8");
+            fileName = encode(sanitizeFilename(getName(url)),"latin1");
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }

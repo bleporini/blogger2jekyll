@@ -75,7 +75,7 @@ public class BloggerParser {
                 final String bloggerContent = (String) propagate(() -> contentFndr.evaluate(entry, STRING));
 
                 final Collection<String> imgUrls = findImageUrlsToReplace(bloggerContent);
-                String imgRelPath = "/assets/img/" + propagate(() -> encode(sanitizeFilename(title), "utf8"));
+                String imgRelPath = "/assets/img/" + propagate(() -> encode(sanitizeFilename(title), "latin1"));
                 if (!imgUrls.isEmpty()) {
                     final String outputDirPath = tmpDirPath + imgRelPath;
                     new File(outputDirPath).mkdirs();
@@ -120,7 +120,7 @@ public class BloggerParser {
         lines.add(content);
 
         try {
-            final Path post = Paths.get(outputDirPath + "/" + date + "-"+encode(title,"utf8")+".html");
+            final Path post = Paths.get(outputDirPath + "/" + date + "-"+encode(sanitizeFilename(title),"latin1")+".html");
             Files.write(post, lines, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -144,7 +144,7 @@ public class BloggerParser {
         imgs.stream()
                 .filter(e -> e.attr("src").contains("blogspot"))
                 .forEach(e -> e.attr("src", relPath + "/" +
-                        propagate(() -> encode(sanitizeFilename(getName(e.attr("src"))), "utf8"))));
+                        propagate(() -> encode(sanitizeFilename(getName(e.attr("src"))), "latin1"))));
 
         doc.select("img").stream() //just for checking
                 .filter(e -> e.attr("src").contains("blogspot"))
