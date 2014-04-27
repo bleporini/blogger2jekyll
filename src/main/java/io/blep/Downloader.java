@@ -46,7 +46,8 @@ public class Downloader implements AutoCloseable {
      * @return an encoded filename without characters with problems.
      */
     public static String sanitizeFilename(String original) {
-        return propagate(()->stripAccents(decode(original.replaceAll("%E2%80%99",""), "utf8").replaceAll(":", "")));
+        return propagate(()->stripAccents(decode(original.replaceAll("%E2%80%99",""), "utf8")
+                .replaceAll(":", "").replaceAll("'","_")));
 
     }
 
