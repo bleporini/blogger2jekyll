@@ -5,7 +5,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import org.junit.Test;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
@@ -21,34 +20,33 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 
-import static io.blep.FilenameUtils.sanitizeFilename;
 import static io.blep.ExceptionUtils.propagate;
+import static io.blep.FilenameUtils.sanitizeFilename;
 import static java.net.URLEncoder.encode;
-import static java.util.Arrays.asList;
-import static java.util.stream.Collectors.*;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static javax.xml.xpath.XPathConstants.NODESET;
 import static javax.xml.xpath.XPathConstants.STRING;
 import static org.apache.commons.io.FilenameUtils.getName;
 
 /**
  * @author blep
+ *         Date: 27/04/14
+ *         Time: 10:17
  */
 @Slf4j
-public class BloggerParserTest {
+public class JekyllImporter {
 
-    private static final String sourceFileName = "/blog-03-28-2014.xml";
-//    private static final String sourceFileName = "/test.xml";
     private static final String postKind = "http://schemas.google.com/blogger/2008/kind#post";
     private static final String tagScheme = "http://www.blogger.com/atom/ns#";
 
-//    private static final String tmpDirPath = System.getProperty("java.io.tmpdir")+ "/blogger2jekyll";
-    private static final String tmpDirPath = "/Users/blep/dev/blogger2jekyll/target/classes/the-babel-tower";
-    static {
-        BloggerParserTest.log.info("Working tmp dir : {}", tmpDirPath);
-    }
+    private final Downloader downloader;
 
     private final XPath xpath = XPathFactory.newInstance().newXPath();
     private final XPathExpression titleFndr= xpath.compile("*[local-name()='title']/text()");
@@ -57,51 +55,45 @@ public class BloggerParserTest {
     private final XPathExpression publishFndr = xpath.compile("*[local-name()='published']/text()");
     private final XPathExpression blogEntriesFndr = xpath.compile("/*[local-name()='feed']/*[local-name()='entry' and *[local-name()='category' and @term='" + postKind + "']]");
 
-    public BloggerParserTest() throws XPathExpressionException {}
 
-
-    @Test
-    public void findAllPosts() throws Exception {
-        BloggerParserTest.log.info("Start");
-
-        try (final InputStream xmlIs = getClass().getResourceAsStream(sourceFileName);
-                final Downloader downloader = new Downloader()) {
-            final InputSource inputSource = new InputSource(xmlIs);
-            final NodeList res = (NodeList) blogEntriesFndr.evaluate(inputSource, NODESET);
-
-            DomUtils.asList(res).stream().forEach(entry->{
-                final String title = (String) propagate(() -> titleFndr.evaluate(entry, STRING));
-                BloggerParserTest.log.info("title= {}", title);
-                final String date = ((String) propagate(() -> publishFndr.evaluate(entry, STRING))).substring(0,10);
-                BloggerParserTest.log.info("date : {}", date);
-                final String bloggerContent = (String) propagate(() -> contentFndr.evaluate(entry, STRING));
-
-                final Collection<String> imgUrls = findImageUrlsToReplace(bloggerContent);
-                String imgRelPath = "/assets/img/" + propagate(() -> encode(sanitizeFilename(title), "latin1"));
-                if (!imgUrls.isEmpty()) {
-                    final String outputDirPath = tmpDirPath + imgRelPath;
-                    new File(outputDirPath).mkdirs();
-
-                    final Downloader.DownloadToDir downloadToDir = downloader.downloaderToDir(
-                            outputDirPath, f -> BloggerParserTest.log.info("Download done to {}", f.getAbsolutePath()));
-                    imgUrls.forEach(downloadToDir::doDownload);
-                }
-
-                final String contentWithNewImgs = replaceImagesUrl(bloggerContent, imgRelPath);
-                final String body = extractBody(contentWithNewImgs);
-
-                BloggerParserTest.log.info("content = {}", contentWithNewImgs);
-
-                final List<Node> tagNodes = DomUtils.asList((NodeList) propagate(() -> tagsFndr.evaluate(entry, NODESET)));
-                final Set<String> tags = extractTags(tagNodes);
-                createPosts(date,title,body,tags);
-            });
-
-        }
-
+    public JekyllImporter(Downloader downloader) throws XPathExpressionException{
+        this.downloader = downloader;
     }
 
+    public void generatePostsFromBloggerExport(final InputStream xmlIs, String exportDirPath) throws XPathExpressionException {
 
+        final InputSource inputSource = new InputSource(xmlIs);
+        final NodeList res = (NodeList) blogEntriesFndr.evaluate(inputSource, NODESET);
+
+        DomUtils.asList(res).stream().forEach(entry->{
+            final String title = (String) propagate(() -> titleFndr.evaluate(entry, STRING));
+            log.info("title= {}", title);
+            final String date = ((String) propagate(() -> publishFndr.evaluate(entry, STRING))).substring(0,10);
+            log.info("date : {}", date);
+            final String bloggerContent = (String) propagate(() -> contentFndr.evaluate(entry, STRING));
+
+            final Collection<String> imgUrls = findImageUrlsToReplace(bloggerContent);
+            String imgRelPath = "/assets/img/" + propagate(() -> encode(sanitizeFilename(title), "latin1"));
+            if (!imgUrls.isEmpty()) {
+                final String outputDirPath = exportDirPath + imgRelPath;
+                new File(outputDirPath).mkdirs();
+
+                final Downloader.DownloadToDir downloadToDir = downloader.downloaderToDir(
+                        outputDirPath, f -> log.info("Download done to {}", f.getAbsolutePath()));
+                imgUrls.forEach(downloadToDir::doDownload);
+            }
+
+            final String contentWithNewImgs = replaceImagesUrl(bloggerContent, imgRelPath);
+            final String body = extractBody(contentWithNewImgs);
+
+            log.info("content = {}", contentWithNewImgs);
+
+            final List<Node> tagNodes = DomUtils.asList((NodeList) propagate(() -> tagsFndr.evaluate(entry, NODESET)));
+            final Set<String> tags = extractTags(tagNodes);
+            createPosts(exportDirPath,date,title,body,tags);
+        });
+
+    }
 
     private String extractBody(String content) {
         final Document doc = Jsoup.parse(content);
@@ -109,8 +101,8 @@ public class BloggerParserTest {
 
     }
 
-    private void createPosts(String date, String title, String content, Set<String> tags){
-        final String outputDirPath = tmpDirPath + "/_posts";
+    private void createPosts(String exportDirPath, String date, String title, String content, Set<String> tags){
+        final String outputDirPath = exportDirPath + "/_posts";
         new File(outputDirPath).mkdirs();
 
         final ArrayList<String> lines = new ArrayList<>(6);
@@ -124,7 +116,7 @@ public class BloggerParserTest {
         lines.add(content);
 
         try {
-            final Path post = Paths.get(outputDirPath + "/" + date + "-"+encode(sanitizeFilename(title),"latin1")+".html");
+            final Path post = Paths.get(outputDirPath + "/" + date + "-" + encode(sanitizeFilename(title), "latin1") + ".html");
             Files.write(post, lines, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -165,6 +157,4 @@ public class BloggerParserTest {
                 .collect(toList());
     }
 
-
 }
-
