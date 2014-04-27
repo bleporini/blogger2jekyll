@@ -1,7 +1,6 @@
 package io.blep;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
@@ -10,7 +9,6 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 
 import java.io.*;
-import java.net.URLDecoder;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -56,7 +54,7 @@ public class Downloader implements AutoCloseable {
         void notify(File f);
     }
 
-    private List<CountDownLatch> latches = new CopyOnWriteArrayList<>();
+    private final List<CountDownLatch> latches = new CopyOnWriteArrayList<>();
 
     public static class DownloadToDir{
         private final String outputdir;
@@ -78,7 +76,7 @@ public class Downloader implements AutoCloseable {
         return new DownloadToDir(outputdir, this, listener);
     }
 
-    public void doDownload(String url, String outputDir, FishedDownloadListener listener) {
+    void doDownload(String url, String outputDir, FishedDownloadListener listener) {
         final String fileName;
         try {
             fileName = encode(sanitizeFilename(getName(url)),"latin1");

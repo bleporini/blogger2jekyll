@@ -6,7 +6,7 @@ import org.w3c.dom.NodeList;
 import java.util.ArrayList;
 import java.util.List;
 
-public class DomUtils {
+class DomUtils {
 
     public static List<Node> asList(NodeList nl) {
         final ArrayList<Node> nodeList = new ArrayList<>();

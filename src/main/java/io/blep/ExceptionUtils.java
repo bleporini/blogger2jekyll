@@ -1,6 +1,6 @@
 package io.blep;
 
-public class ExceptionUtils {
+class ExceptionUtils {
     @FunctionalInterface
     public static interface Caller<T>{
         public T doIt() throws Exception;
