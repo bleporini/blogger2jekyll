@@ -69,19 +69,14 @@
       </div>
 
   </nav>
-  <div class="container">
-      <div class="row">
-          <div class="col-md-2 side-bar">
-              <h1>Tags</h1>
-              <span class="tag-cloud">
+  <div class="nav navbar-nav pull-left">
+      <span class="tag-cloud">
+      <h1>Tags</h1>
                 {% tag_cloud %}
-              </span>
-          </div>
-          <div class="col-md-10">
-              {{ content }}
-
-          </div>
-      </div>
+      </span>
+  </div>
+  <div class="container">
+      {{ content }}
       <hr>
       <footer>
           <p>
