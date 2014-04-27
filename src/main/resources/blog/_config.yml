@@ -15,11 +15,11 @@ redcarpet:
 # so be sure to set them if your theme uses them.
 #
 title : The Babel Tower
-tagline: Site Tagline
+tagline: En tant que développeur, on traverse les projets en passant souvent beaucoup plus de temps à faire fonctionner les outils qui sont à notre disposition qu'à écrire les lignes de codes qui implémentent les besoins... Ici vous trouverez un recueil de galères rencontrées et parfois quelques tutos...
 author :
   name : Brice LEPORINI
   email : bleporini@gmail.com
-  github : username
+  github : bleporini
   twitter : blep
   feedburner : feedname
 
@@ -60,7 +60,7 @@ JB :
   #   - Only the following values are falsy: ["", null, false]
   #   - When setting BASE_PATH it must be a valid url.
   #     This means always setting the protocol (http|https) or prefixing with "/"
-  BASE_PATH : false
+  BASE_PATH : "/blog"
 
   # By default, the asset_path is automatically defined relative to BASE_PATH plus the enabled theme.
   # ex: [BASE_PATH]/assets/themes/[THEME-NAME]
@@ -76,7 +76,7 @@ JB :
   # Some JB helpers refer to these paths; change them here if needed.
   #
   archive_path: /archive.html
-  categories_path : /categories.html
+  # categories_path : /categories.html
   tags_path : /tags.html
   atom_path : /atom.xml
   rss_path : /rss.xml

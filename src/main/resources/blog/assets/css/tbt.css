@@ -1,0 +1,31 @@
+ .side-bar > img {
+     padding-bottom: 20px;
+}
+
+ ul.post-collate-side{
+     padding-left: 20px;
+ }
+
+ .side-bar > ul {
+     padding-top: 20px;
+     padding-bottom: 10px;
+}
+.tag-cloud{
+    font-size: 11px;
+}
+
+.tag_box li{
+    display:inline-block;
+    margin-left: 5px;
+}
+
+.tag_box{
+    text-align: right;
+    margin-top: 10px;
+}
+
+.date{
+    margin-bottom: 10px;
+    font-weight: bolder;
+    text-align: right;
+}

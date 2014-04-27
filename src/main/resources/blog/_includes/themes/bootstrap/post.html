@@ -1,0 +1,64 @@
+<div class="page-header">
+  <h1>{{ page.title }} {% if page.tagline %}<small>{{page.tagline}}</small>{% endif %}</h1>
+</div>
+
+<div class="row post-full">
+  <div class="col-md-12">
+    <div class="date">
+      <span>{{ page.date | date: "%Y-%m-%d" }}</span>
+    </div>
+    <div class="content">
+      {{ content }}
+    </div>
+
+    {% unless page.categories == empty %}
+      <ul class="tag_box inline">
+        <li><i class="icon-folder-open"></i></li>
+        {% assign categories_list = page.categories %}
+        {% include JB/categories_list %}
+      </ul>
+    {% endunless %}
+
+    {% unless page.tags == empty %}
+      <ul class="tag_box inline">
+        {% assign tags_list = page.tags %}
+        {% include JB/tags_list %}
+      </ul>
+    {% endunless %}
+
+      <a href="https://twitter.com/share" class="twitter-share-button" data-via="{{ site.author.twitter }}">Tweet</a>
+      <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
+
+      <!-- Placez cette balise où vous souhaitez faire apparaître le gadget Bouton +1. -->
+      <div class="g-plusone"></div>
+
+      <!-- Placez cette ballise après la dernière balise Bouton +1. -->
+      <script type="text/javascript">
+          window.___gcfg = {lang: 'fr'};
+
+          (function() {
+              var po = document.createElement('script'); po.type = 'text/javascript'; po.async = true;
+              po.src = 'https://apis.google.com/js/platform.js';
+              var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(po, s);
+          })();
+      </script>
+
+    <hr>
+    
+    <ul class="pagination">
+      {% if page.previous %}
+        <li class="prev"><a href="{{ BASE_PATH }}{{ page.previous.url }}" title="{{ page.previous.title }}">&larr; Précédent</a></li>
+      {% else %}
+        <li class="prev disabled"><a>&larr; Précédent</a></li>
+      {% endif %}
+        <li><a href="{{ BASE_PATH }}{{ site.JB.archive_path }}">Archive</a></li>
+      {% if page.next %}
+        <li class="next"><a href="{{ BASE_PATH }}{{ page.next.url }}" title="{{ page.next.title }}">Suivant &rarr;</a></li>
+      {% else %}
+        <li class="next disabled"><a>Suivant &rarr;</a>
+      {% endif %}
+    </ul>
+    <hr>
+    {% include JB/comments %}
+  </div>
+</div>
