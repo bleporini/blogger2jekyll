@@ -65,7 +65,7 @@ public class Downloader implements AutoCloseable {
     void doDownload(String url, String outputDir, FishedDownloadListener listener) {
         final String fileName;
         try {
-            fileName = encode(FilenameUtils.sanitizeFilename(getName(url)),"latin1");
+            fileName = encode(FilenameUtils.sanitizeFilename(getName(url),"latin1"),"latin1");
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }

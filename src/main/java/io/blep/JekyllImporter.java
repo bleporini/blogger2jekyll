@@ -53,7 +53,8 @@ public class JekyllImporter {
     private final XPathExpression contentFndr = xpath.compile("*[local-name()='content']/text()");
     private final XPathExpression tagsFndr = xpath.compile("*[local-name()='category' and @scheme='" + tagScheme + "']/@term");
     private final XPathExpression publishFndr = xpath.compile("*[local-name()='published']/text()");
-    private final XPathExpression blogEntriesFndr = xpath.compile("/*[local-name()='feed']/*[local-name()='entry' and *[local-name()='category' and @term='" + postKind + "']]");
+    private final XPathExpression blogEntriesFndr = xpath.compile("/*[local-name()='feed']/*[local-name()='entry' " +
+            "and *[local-name()='category' and @term='" + postKind + "']]");
 
 
     public JekyllImporter(Downloader downloader) throws XPathExpressionException{
@@ -73,7 +74,8 @@ public class JekyllImporter {
             final String bloggerContent = (String) propagate(() -> contentFndr.evaluate(entry, STRING));
 
             final Collection<String> imgUrls = findImageUrlsToReplace(bloggerContent);
-            String imgRelPath = "/assets/img/" + propagate(() -> encode(sanitizeFilename(title), "latin1"));
+            String imgRelPath = "{{ BASE_PATH }}/assets/img/" + propagate(() -> encode(sanitizeFilename(title, "latin1"),
+                    "latin1"));
             if (!imgUrls.isEmpty()) {
                 final String outputDirPath = exportDirPath + imgRelPath;
                 new File(outputDirPath).mkdirs();
@@ -90,7 +92,7 @@ public class JekyllImporter {
 
             final List<Node> tagNodes = DomUtils.asList((NodeList) propagate(() -> tagsFndr.evaluate(entry, NODESET)));
             final Set<String> tags = extractTags(tagNodes);
-            createPosts(exportDirPath,date,title,body,tags);
+            createPost(exportDirPath, date, title, body, tags);
         });
 
     }
@@ -101,7 +103,7 @@ public class JekyllImporter {
 
     }
 
-    private void createPosts(String exportDirPath, String date, String title, String content, Set<String> tags){
+    private void createPost(String exportDirPath, String date, String title, String content, Set<String> tags){
         final String outputDirPath = exportDirPath + "/_posts";
         new File(outputDirPath).mkdirs();
 
@@ -116,7 +118,7 @@ public class JekyllImporter {
         lines.add(content);
 
         try {
-            final Path post = Paths.get(outputDirPath + "/" + date + "-" + encode(sanitizeFilename(title), "latin1") + ".html");
+            final Path post = Paths.get(outputDirPath + "/" + date + "-" + encode(sanitizeFilename(title,"latin1"), "latin1") + ".html");
             Files.write(post, lines, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -138,7 +140,7 @@ public class JekyllImporter {
         imgs.stream()
                 .filter(e -> e.attr("src").contains("blogspot"))
                 .forEach(e -> e.attr("src", relPath + "/" +
-                        propagate(() -> encode(sanitizeFilename(getName(e.attr("src"))), "latin1"))));
+                        propagate(() -> encode(sanitizeFilename(getName(e.attr("src")),"utf8"), "latin1"))));
 
         doc.select("img").stream() //just for checking
                 .filter(e -> e.attr("src").contains("blogspot"))

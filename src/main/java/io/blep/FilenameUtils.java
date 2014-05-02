@@ -15,9 +15,9 @@ public class FilenameUtils {
      * @param original
      * @return an encoded filename without characters with problems.
      */
-    public static String sanitizeFilename(String original) {
-        return propagate(()->stripAccents(decode(original.replaceAll("%E2%80%99",""), "latin1")
-                .replaceAll(":", "").replaceAll("'","_")));
+    public static String sanitizeFilename(String original, String encoding) {
+        return propagate(()->stripAccents(decode(original.replaceAll("%E2%80%99",""), encoding)
+                .replaceAll("'","_").replaceAll("[,!:?()/]","")));
 
     }
 }
