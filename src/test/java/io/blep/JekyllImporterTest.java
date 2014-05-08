@@ -10,7 +10,7 @@ public class JekyllImporterTest {
     private static final String sourceFileName = "/blog-03-28-2014.xml";
 
 
-    private static final String tmpDirPath = "/Users/blep/dev/blogger2jekyll/target/classes/blog";
+    private static final String tmpDirPath = System.getProperty("java.io.tmpdir");
 
     @Test
     public void testName() throws Exception {
